@@ -59,8 +59,7 @@ struct FakeSocket
         return false;
     }
 
-    std::expected<size_t, WSError>
-    read_some(std::span<byte> buffer, ws_client::Timeout<>&) noexcept
+    std::expected<size_t, WSError> read_some(std::span<byte> buffer, ws_client::Timeout<>&) noexcept
     {
         return state->read_some(buffer);
     }
@@ -108,8 +107,7 @@ struct FakeSocketAsync
         co_return buffer.size();
     }
 
-    asio::awaitable<std::expected<void, WSError>>
-    shutdown(bool, ws_client::Timeout<>&) noexcept
+    asio::awaitable<std::expected<void, WSError>> shutdown(bool, ws_client::Timeout<>&) noexcept
     {
         co_return std::expected<void, WSError>{};
     }

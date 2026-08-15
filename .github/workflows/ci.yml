@@ -37,15 +37,8 @@ jobs:
             BASE_SHA=$(git rev-parse HEAD^)
           fi
 
-          format_diff=$(mktemp)
           git clang-format-18 --binary clang-format-18 --diff \
-            "$BASE_SHA" HEAD --extensions hpp,cpp -- include tests examples bench \
-            > "$format_diff"
-
-          if grep -q '^diff --git ' "$format_diff"; then
-            cat "$format_diff"
-            exit 1
-          fi
+            "$BASE_SHA" HEAD --extensions hpp,cpp -- include tests examples bench
 
   ci:
     name: ${{ matrix.name }}

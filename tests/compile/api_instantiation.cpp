@@ -76,8 +76,7 @@ using AsyncClient = ws_client::WebSocketClientAsync<
     ws_client::ConsoleLogger,
     MoveOnlyAsyncSocket,
     MoveOnlyMaskKeyGen>;
-using AsyncBufferedSocket =
-    ws_client::BufferedSocketAsync<MoveOnlyAsyncSocket, asio::awaitable>;
+using AsyncBufferedSocket = ws_client::BufferedSocketAsync<MoveOnlyAsyncSocket, asio::awaitable>;
 
 void instantiate_sync_client_moves(ws_client::ConsoleLogger* logger)
 {
@@ -96,9 +95,7 @@ void instantiate_async_client_moves(ws_client::ConsoleLogger* logger)
 }
 
 asio::awaitable<void> instantiate_async_buffered_write(
-    AsyncBufferedSocket& socket,
-    std::span<const byte> buffer,
-    ws_client::Timeout<>& timeout
+    AsyncBufferedSocket& socket, std::span<const byte> buffer, ws_client::Timeout<>& timeout
 )
 {
     auto result = co_await socket.write_some(buffer, timeout);

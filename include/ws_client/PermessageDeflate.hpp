@@ -713,8 +713,8 @@ public:
         std::span<byte> input = decompress_buffer().data();
 
         size_t size = 0;
-        auto inflate_input = [&](std::span<byte> compressed, unsigned int min_output_size)
-            -> std::expected<void, WSError>
+        auto inflate_input = [&](std::span<byte> compressed,
+                                 unsigned int min_output_size) -> std::expected<void, WSError>
         {
             istate_->next_in = reinterpret_cast<Bytef*>(compressed.data());
             istate_->avail_in = static_cast<unsigned int>(compressed.size());
@@ -724,10 +724,7 @@ public:
                 // extend output buffer if required.
                 // assumes average compression ratio of 5:1.
                 // if more than 5x the input size is required, the buffer will be extended again.
-                WS_TRY(
-                    alloc_res,
-                    output.append(std::max(min_output_size, istate_->avail_in * 5))
-                );
+                WS_TRY(alloc_res, output.append(std::max(min_output_size, istate_->avail_in * 5)));
                 std::span<byte> avail = *alloc_res;
 
                 // set zlib output buffer

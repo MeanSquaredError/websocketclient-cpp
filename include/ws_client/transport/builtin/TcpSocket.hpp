@@ -499,6 +499,7 @@ public:
         bool fail_connection, Timeout<>& timeout
     ) noexcept override
     {
+        static_cast<void>(timeout);
         if (!fail_connection)
         {
             if (fd_ != -1)
@@ -533,6 +534,7 @@ public:
      */
     virtual std::expected<void, WSError> close(bool fail_connection) noexcept override
     {
+        static_cast<void>(fail_connection);
         if (fd_ != -1)
         {
 #if WS_CLIENT_LOG_TCP > 0

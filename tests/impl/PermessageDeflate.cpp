@@ -129,7 +129,8 @@ TEST(PermessageDeflateContext, decompress_hello)
 
     // Hello
     uint8_t buf[] = {
-        0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00}; // trailer bytes stripped: 0x00, 0x00, 0xff, 0xff
+        0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00
+    }; // trailer bytes stripped: 0x00, 0x00, 0xff, 0xff
     span<byte> payload{reinterpret_cast<byte*>(buf), sizeof(buf)};
     ctx.decompress_buffer().append(payload.data(), payload.size());
 

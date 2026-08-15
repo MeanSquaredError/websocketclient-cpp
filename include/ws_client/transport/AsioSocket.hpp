@@ -304,6 +304,7 @@ public:
         bool fail_connection
     ) noexcept
     {
+        static_cast<void>(fail_connection);
         asio::error_code ec;
 
 #if WS_CLIENT_LOG_TCP > 0
