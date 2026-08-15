@@ -65,7 +65,7 @@ enum class opcode : uint8_t
     not_set = 0xFF, // Not offical, used by this library internally
 };
 
-static bool is_reserved(opcode v) noexcept
+static constexpr bool is_reserved(opcode v) noexcept
 {
     return (v >= opcode::rsv3 && v <= opcode::rsv7) ||
            (v >= opcode::control_rsvb && v <= opcode::control_rsvf);

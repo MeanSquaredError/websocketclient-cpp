@@ -49,7 +49,7 @@ enum class close_code : uint16_t
     // 4000 - 4999 are reserved for private use
 };
 
-static bool is_valid_close_code(close_code code) noexcept
+static constexpr bool is_valid_close_code(close_code code) noexcept
 {
     return code == close_code::normal_closure || code == close_code::going_away ||
            code == close_code::protocol_error || code == close_code::unacceptable_data_type ||

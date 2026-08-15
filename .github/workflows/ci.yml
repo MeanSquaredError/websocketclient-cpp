@@ -34,6 +34,7 @@ jobs:
             triplet: x64-linux
             debug_flags: -g
             libcxx: false
+            libcxx_version: 0
           - name: GCC 14
             version: 14
             preset: gcc_debug_tests
@@ -44,6 +45,7 @@ jobs:
             triplet: x64-linux
             debug_flags: -g
             libcxx: false
+            libcxx_version: 0
           - name: Clang 16
             version: 16
             preset: clang_debug_tests
@@ -54,6 +56,7 @@ jobs:
             triplet: x64-linux-libcxx
             debug_flags: -g -stdlib=libc++
             libcxx: true
+            libcxx_version: 18
           - name: Clang 18
             version: 18
             preset: clang_debug_tests
@@ -64,6 +67,7 @@ jobs:
             triplet: x64-linux-libcxx
             debug_flags: -g -stdlib=libc++
             libcxx: true
+            libcxx_version: 18
 
     steps:
       - name: Check out repository
@@ -76,8 +80,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends \
-            "libc++-${{ matrix.version }}-dev" \
-            "libc++abi-${{ matrix.version }}-dev"
+            "libc++-${{ matrix.libcxx_version }}-dev" \
+            "libc++abi-${{ matrix.libcxx_version }}-dev"
 
       - name: Check public headers
         run: |
