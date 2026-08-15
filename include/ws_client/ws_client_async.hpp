@@ -2,6 +2,7 @@
 
 #include "ws_client/config.hpp"
 
+#include <cstddef>
 static_assert(sizeof(size_t) == 8, "WebSocketClientAsync only supports 64-bit architectures");
 
 #include "ws_client/errors_async.hpp"
