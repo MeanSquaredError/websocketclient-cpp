@@ -2,8 +2,7 @@
 
 #include "ws_client/config.hpp"
 
-#include <cstddef>
-static_assert(sizeof(size_t) == 8, "WebSocketClient only supports 64-bit architectures");
+static_assert(sizeof(void*) == 8, "WebSocketClient only supports 64-bit architectures");
 
 #include "ws_client/errors.hpp"
 #include "ws_client/log.hpp"
