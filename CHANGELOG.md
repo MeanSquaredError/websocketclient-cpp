@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.2] - 2026-08-15
+
+### Changed
+
+- Check for a 64-bit architecture without relying on a declaration of `size_t`
+
 ## [0.7.1] - 2025-07-13
 
 ### Changed
