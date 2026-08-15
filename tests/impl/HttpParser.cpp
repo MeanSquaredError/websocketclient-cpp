@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
+
+#include <array>
 #include <string>
+#include <string_view>
 
 #include "ws_client/HttpParser.hpp"
 
@@ -57,6 +60,19 @@ TEST(HttpParser_parse_header_status_line, valid_status_line_with_extra_spaces)
     EXPECT_TRUE(result.value().protocol_version == "HTTP/1.1");
     EXPECT_TRUE(result.value().status_code == 200);
     EXPECT_TRUE(result.value().reason == "OK");
+}
+
+TEST(HttpParser_parse_header_status_line, rejects_partially_parsed_status_codes)
+{
+    constexpr std::array<std::string_view, 3> invalid_status_lines{
+        "HTTP/1.1 200OK Invalid",
+        "HTTP/1.1 101x Invalid",
+        "HTTP/1.1 200.0 Invalid",
+    };
+
+    for (const auto status_line : invalid_status_lines)
+        EXPECT_FALSE(HttpParser::parse_request_status_line(std::string(status_line)).has_value())
+            << status_line;
 }
 
 // ----------------------------------------------------------------------------

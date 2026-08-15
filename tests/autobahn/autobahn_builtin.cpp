@@ -173,7 +173,7 @@ int main()
         }
         auto& str = res.value();
         auto case_count_conv = std::from_chars(str.data(), str.data() + str.size(), case_count);
-        if (case_count_conv.ec != std::errc{})
+        if (case_count_conv.ec != std::errc{} || case_count_conv.ptr != str.data() + str.size())
         {
             std::cerr << "Failed to parse number of cases: " << str << std::endl;
             return 1;

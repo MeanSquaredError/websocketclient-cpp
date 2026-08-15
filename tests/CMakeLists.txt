@@ -8,8 +8,6 @@ find_package(GTest CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-enable_testing()
-
 # --------------------------------------
 file(GLOB_RECURSE SOURCES_TESTS "./impl/*.cpp")
 add_executable(unit_tests ${SOURCES_TESTS})
@@ -23,6 +21,14 @@ target_link_libraries(unit_tests PRIVATE
     ZLIB::ZLIB
     OpenSSL::SSL
     OpenSSL::Crypto
+    websocketclient
+)
+
+add_library(api_compile_tests OBJECT compile/api_instantiation.cpp)
+target_link_libraries(api_compile_tests PRIVATE
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    ZLIB::ZLIB
     websocketclient
 )
 

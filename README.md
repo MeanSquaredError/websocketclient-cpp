@@ -8,7 +8,7 @@ A transport-agnostic, high-performance, header-only C++23 WebSocket client libra
 - Full [RFC 6455](https://www.rfc-editor.org/rfc/rfc6455.html) compliance
 - WebSocket Secure (WSS) support
 - Compression support (`permessage-deflate` protocol extension, [RFC 7692](https://www.rfc-editor.org/rfc/rfc7692.html))
-- Support for `zlib-ng` over `zlib` library for improved (de-)compression performance on modern architectures
+- Optional native `zlib-ng` backend for improved (de-)compression performance on modern architectures
 - Fast, optional UTF-8 text frame validation using SIMD ([simdutf](https://github.com/simdutf/simdutf))
 - Fast payload masking using SIMD
 - Does not throw exceptions (works with `-fno-exceptions`)
@@ -18,7 +18,7 @@ A transport-agnostic, high-performance, header-only C++23 WebSocket client libra
 - Pre-allocate message payload buffer once and reuse it for all messages
 - Timeout parameter for all network operations
 - Async implementation supports cancellation (e.g. `asio::cancellation_slot`)
-- Few dependencies (STL, [OpenSSL](https://github.com/openssl/openssl), [zlib](https://github.com/madler/zlib) or [zlib-ng](https://github.com/zlib-ng/zlib-ng), [simdutf](https://github.com/simdutf/simdutf))
+- Few dependencies (STL, [zlib](https://github.com/madler/zlib), and optional [OpenSSL](https://github.com/openssl/openssl), [zlib-ng](https://github.com/zlib-ng/zlib-ng), and [simdutf](https://github.com/simdutf/simdutf))
 - Pluggable transport layers
   - Blocking I/O support (built-in based on POSIX)
   - Non-blocking async I/O support based on C++20 coroutines, e.g. using [ASIO](https://github.com/chriskohlhoff/asio)
@@ -27,7 +27,7 @@ A transport-agnostic, high-performance, header-only C++23 WebSocket client libra
 - Pluggable logging (optional)
 - **GCC 13+** and **Clang 16+** compiler support
 - Tested on **64 bit** **x86** and **ARM64** (**Ubuntu x86**, **MacOS M2 ARM64**) platforms (32-bit NOT supported)
-- Passes all [Autobahn Testsuite](https://github.com/crossbario/autobahn-testsuite) tests
+- Passes all [Autobahn Testsuite](https://github.com/crossbario/autobahn-testsuite) tests; see the [published report](https://rbeeli.github.io/websocketclient-cpp/tests/autobahn/reports_summary/index.html)
 
 > **NOTE:**
 > Despite being used in production, this library is still under development and the API may change.
@@ -52,8 +52,13 @@ See [CHANGELOG.md](CHANGELOG.md).
 | ------------------------------------------------ | ---------------------------------------------------------------------------------- | -------- |
 | [simdutf](https://github.com/simdutf/simdutf)    | SIMD instructions based UTF-8 validator used for text messages payload validation. | Optional |
 | [openssl 3](https://github.com/openssl/openssl) | WebSocket Secure (WSS) support.                                                    | If using WSS. |
-| [zlib](https://github.com/madler/zlib)           | Message compression support through permessage-deflate extension.                  | If using compression (permessage-deflate). |
-| [zlib-ng](https://github.com/zlib-ng/zlib-ng)    | Faster alternative to `zlib` library with optimizations for modern CPUs.           | If using compression (permessage-deflate), alternative to `zlib`. |
+| [zlib](https://github.com/madler/zlib)           | Message compression support through permessage-deflate extension.                  | Yes |
+| [zlib-ng](https://github.com/zlib-ng/zlib-ng)    | Optional native backend with optimizations for modern CPUs.                        | No |
+
+The installed CMake package requires `ZLIB` and propagates `ZLIB::ZLIB` through
+`websocketclient::websocketclient`. A zlib-ng build in zlib compatibility mode can
+satisfy that dependency. To use the native zlib-ng API instead, define
+`WS_CLIENT_USE_ZLIB_NG=1` and explicitly link zlib-ng in the consuming target.
 
 See the [examples](examples) directory for more information.
 
@@ -84,7 +89,7 @@ The following compile-time configuration switches can be set:
 | Option                       | Values      | Description |
 | -------------------------    | ----------- | ------------------------------------------------------------------ |
 | `WS_CLIENT_USE_SIMD_UTF8`    | `1` or `0`  | Enable/disable SIMD instructions based UTF-8 validator for text messages payload validation. |
-| `WS_CLIENT_USE_ZLIB_NG`      | `1` or `0`  | Enable/disable `zlib-ng` instead of `zlib` library for permessage-deflate compression. |
+| `WS_CLIENT_USE_ZLIB_NG`      | `1` or `0`  | Use the native `zlib-ng` API instead of the default zlib-compatible API. The consumer must also link zlib-ng. |
 | `WS_CLIENT_VALIDATE_UTF8`    | `1` or `0`  | Enable/disable UTF-8 validation for text messages payload. |
 
 Example:

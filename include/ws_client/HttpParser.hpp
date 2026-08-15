@@ -47,7 +47,7 @@ public:
             temp_status_code.data() + temp_status_code.size(),
             result.status_code
         );
-        if (ec != std::errc())
+        if (ec != std::errc() || ptr != temp_status_code.data() + temp_status_code.size())
         {
             return WS_ERROR(
                 protocol_error, "Status code is not a valid integer.", close_code::not_set

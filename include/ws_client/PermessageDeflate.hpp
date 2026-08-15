@@ -19,7 +19,6 @@
 #define inflateInit2(_strm, _windowBits) zng_inflateInit2(_strm, _windowBits)
 #define inflate(_strm, __flush) zng_inflate(_strm, __flush)
 #define inflateEnd(_strm) zng_inflateEnd(_strm)
-#define inflateReset(_strm) zng_inflateReset(_strm)
 #define deflateInit2(_strm, _level, _method, _windowBits, _memLevel, _strategy)                    \
     zng_deflateInit2(_strm, _level, _method, _windowBits, _memLevel, _strategy)
 #define deflateEnd(_strm) zng_deflateEnd(_strm)
@@ -467,39 +466,8 @@ struct PermessageDeflate
         {
             std::string client_max_window_bits_str = extensions.find("client_max_window_bits")
                                                          ->second;
-
-            int client_max_window_bits_parsed;
-            auto const res = std::from_chars(
-                client_max_window_bits_str.data(),
-                client_max_window_bits_str.data() + client_max_window_bits_str.size(),
-                client_max_window_bits_parsed
-            );
-
-            if (res.ec != std::errc{})
-            {
-                return WS_ERROR(
-                    protocol_error,
-                    std::format(
-                        "Failed to parse client_max_window_bits from server: {}",
-                        client_max_window_bits_str
-                    ),
-                    close_code::not_set
-                );
-            }
-
-            if (client_max_window_bits_parsed < 8 || client_max_window_bits_parsed > 15)
-            {
-                return WS_ERROR(
-                    protocol_error,
-                    std::format(
-                        "Invalid client_max_window_bits value received. Expected: 8-15, got: {}",
-                        client_max_window_bits_parsed
-                    ),
-                    close_code::not_set
-                );
-            }
-
-            this->client_max_window_bits = static_cast<uint8_t>(client_max_window_bits_parsed);
+            WS_TRY(res, parse_window_bits(client_max_window_bits_str));
+            this->client_max_window_bits = *res;
         }
         else
         {
@@ -576,10 +544,9 @@ struct PermessageDeflate
     ) const
     {
         int result;
-        auto const res = std::from_chars(
-            bits_string.data(), bits_string.data() + bits_string.size(), result
-        );
-        if (res.ec != std::errc{})
+        const char* end = bits_string.data() + bits_string.size();
+        auto const res = std::from_chars(bits_string.data(), end, result);
+        if (res.ec != std::errc{} || res.ptr != end || result < 8 || result > 15)
         {
             return WS_ERROR(
                 protocol_error,
@@ -745,31 +712,46 @@ public:
     {
         std::span<byte> input = decompress_buffer().data();
 
-        // set zlib input buffer to frame payload
-        istate_->next_in = reinterpret_cast<Bytef*>(input.data());
-        istate_->avail_in = static_cast<unsigned int>(input.size());
-
-        size_t buffer_pos = output.size();
         size_t size = 0;
-        do
+        auto inflate_input = [&](std::span<byte> compressed, unsigned int min_output_size)
+            -> std::expected<void, WSError>
         {
-            // extend output buffer if required.
-            // assumes average compression ratio of 5:1.
-            // if more than 5x the input size is required, the buffer will be extended again.
-            WS_TRY(alloc_res, output.append(std::max(64U, istate_->avail_in * 5)));
-            std::span<byte> avail = *alloc_res;
+            istate_->next_in = reinterpret_cast<Bytef*>(compressed.data());
+            istate_->avail_in = static_cast<unsigned int>(compressed.size());
 
-            // set zlib output buffer
-            istate_->next_out = reinterpret_cast<Bytef*>(avail.data());
-            istate_->avail_out = static_cast<unsigned int>(avail.size());
+            do
+            {
+                // extend output buffer if required.
+                // assumes average compression ratio of 5:1.
+                // if more than 5x the input size is required, the buffer will be extended again.
+                WS_TRY(
+                    alloc_res,
+                    output.append(std::max(min_output_size, istate_->avail_in * 5))
+                );
+                std::span<byte> avail = *alloc_res;
 
-            // decompress using zlib inflate
-            int ret = inflate(istate_, Z_SYNC_FLUSH);
-            if (ret != Z_OK && ret != Z_STREAM_END && ret != Z_BUF_ERROR)
-                return make_error("inflate", istate_->msg);
+                // set zlib output buffer
+                istate_->next_out = reinterpret_cast<Bytef*>(avail.data());
+                istate_->avail_out = static_cast<unsigned int>(avail.size());
 
-            size += avail.size() - istate_->avail_out;
-        } while (istate_->avail_out == 0);
+                // decompress using zlib inflate
+                int ret = inflate(istate_, Z_SYNC_FLUSH);
+                if (ret != Z_OK && ret != Z_STREAM_END && ret != Z_BUF_ERROR)
+                    return make_error("inflate", istate_->msg);
+
+                size += avail.size() - istate_->avail_out;
+                output.discard_end(istate_->avail_out);
+            } while (istate_->avail_out == 0);
+
+            return {};
+        };
+
+        WS_TRYV(inflate_input(input, 64U));
+
+        // RFC 7692 section 7.2.2 requires restoring the sync-flush trailer
+        // stripped from the WebSocket message payload before decompression.
+        byte trailer[] = {byte{0x00}, byte{0x00}, byte{0xff}, byte{0xff}};
+        WS_TRYV(inflate_input(trailer, 1U));
 
 #if WS_CLIENT_LOG_COMPRESSION > 0
         if (logger_->template is_enabled<LogLevel::D, LogTopic::Compression>())
@@ -780,9 +762,6 @@ public:
         }
 #endif
 
-        // resize output buffer
-        output.discard_end(output.size() - buffer_pos - size);
-
         if (def_.server_no_context_takeover)
         {
             // reset inflate state (discard LZ77 sliding window, no context takeover)
@@ -792,12 +771,6 @@ public:
             if (Z_OK != inflateInit2(istate_, -1 * def_.server_max_window_bits))
                 return make_error("inflateInit2", istate_->msg);
         }
-        else
-        {
-            // reset inflate state (preserve LZ77 sliding window)
-            if (Z_OK != inflateReset(istate_))
-                return make_error("inflateReset", istate_->msg);
-        }
 
         return size;
     }
@@ -805,17 +778,6 @@ public:
     [[nodiscard]] std::expected<std::span<byte>, WSError> compress(std::span<byte> input) noexcept
     {
         auto& output = compress_buffer();
-
-        // handle empty payload case
-        if (input.size() == 0) [[unlikely]]
-        {
-            constexpr byte buf[] = {
-                byte(0x02), byte(0x00), byte(0x00), byte(0x00), byte(0xff), byte(0xff)
-            };
-            WS_TRYV(output.append(6));
-            std::memcpy(output.data().data(), buf, sizeof(buf));
-            return output.data().subspan(0, 6);
-        }
 
         // set zlib input buffer to frame payload
         ostate_->next_in = reinterpret_cast<Bytef*>(input.data());

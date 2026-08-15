@@ -14,6 +14,8 @@
 #include <atomic>
 #include <array>
 
+#include "ws_client/config.hpp"
+
 namespace ws_client
 {
 // 0 = disabled, 1 = error, 2 = warning, 3 = info, 4 = debug

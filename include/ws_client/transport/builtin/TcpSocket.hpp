@@ -315,13 +315,12 @@ public:
      */
     inline std::expected<bool, WSError> wait_readable(Timeout<>& timeout) noexcept
     {
-        // create fd_set for select with timeout
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(fd_, &read_fds);
-
         while (true)
         {
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            FD_SET(fd_, &read_fds);
+
             auto remaining = timeout.remaining_timeval();
             int ret = ::select(fd_ + 1, &read_fds, nullptr, nullptr, &remaining);
 
@@ -351,13 +350,12 @@ public:
      */
     inline std::expected<bool, WSError> wait_writeable(Timeout<>& timeout) noexcept
     {
-        // create fd_set for select with timeout
-        fd_set write_fds;
-        FD_ZERO(&write_fds);
-        FD_SET(fd_, &write_fds);
-
         while (true)
         {
+            fd_set write_fds;
+            FD_ZERO(&write_fds);
+            FD_SET(fd_, &write_fds);
+
             auto remaining = timeout.remaining_timeval();
             int ret = ::select(fd_ + 1, nullptr, &write_fds, nullptr, &remaining);
 

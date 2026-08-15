@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.3] - 2026-08-15
+
+### Added
+
+- Repository-owned GCC and Clang CI with formatting, standalone-header, sanitizer, no-exception, API-instantiation, and installed-package checks
+
+### Changed
+
+- Improved CMake package metadata and propagated the C++23 and zlib requirements to consumers
+- Pinned vcpkg dependencies to a reproducible baseline
+- Made test and benchmark dependencies opt-in vcpkg features
+- Updated Clang presets to use libc++ consistently
+- Changed OpenSSL cipher and TLS version accessors to return `std::expected`
+- Stopped installing the unfinished Coroio transport adapter
+
+### Fixed
+
+- Shared error-category and OpenSSL callback state across translation units
+- Move support for WebSocket clients with move-only sockets and masking-key generators
+- Preservation of custom handshake request headers when moving a handshake
+- Compilation of previously uninstantiated OpenSSL accessors
+- Rejection of empty URL hosts and partially parsed or out-of-range numeric fields
+- Validation of WebSocket upgrade headers and URL authority edge cases
+- Standalone compilation of public headers
+
 ## [0.7.2] - 2026-08-15
 
 ### Changed

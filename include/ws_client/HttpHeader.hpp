@@ -5,6 +5,7 @@
 #include <optional>
 #include <ranges>
 #include <utility>
+#include <ostream>
 
 #include "ws_client/utils/string.hpp"
 

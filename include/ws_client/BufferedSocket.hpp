@@ -53,6 +53,9 @@ public:
      */
     [[nodiscard]] std::expected<bool, WSError> wait_readable(Timeout<>& timeout) noexcept
     {
+        if (!read_buffer_.empty())
+            return true;
+
         return socket_.wait_readable(timeout);
     }
 

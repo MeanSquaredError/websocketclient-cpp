@@ -6,6 +6,9 @@
 #include <span>
 #include <limits>
 #include <array>
+#include <cstring>
+
+#include "ws_client/config.hpp"
 
 #if WS_CLIENT_VALIDATE_UTF8 == 1
 #include "ws_client/utils/utf8.hpp"

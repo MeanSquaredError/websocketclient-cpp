@@ -155,7 +155,7 @@ public:
     }
 };
 
-const WSErrorCategory error_category{};
+inline const WSErrorCategory error_category{};
 
 inline std::error_code make_error_code(WSErrorCode e) noexcept
 {

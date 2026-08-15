@@ -98,7 +98,7 @@ public:
     ) noexcept
         : socket_(BufferedSocket(std::move(socket))),
           logger_(logger),
-          mask_key_gen_(mask_key_generator)
+          mask_key_gen_(std::move(mask_key_generator))
     {
     }
 
@@ -116,7 +116,7 @@ public:
     // enable move
     WebSocketClient(WebSocketClient&& other) noexcept
         : closed_(other.closed_),
-          socket_(other.socket_),
+          socket_(std::move(other.socket_)),
           logger_(other.logger_),
           mask_key_gen_(std::move(other.mask_key_gen_)),
           permessage_deflate_ctx_(std::move(other.permessage_deflate_ctx_)),
@@ -132,7 +132,7 @@ public:
         if (this != &other)
         {
             this->closed_ = other.closed_;
-            this->socket_ = other.socket_;
+            this->socket_ = std::move(other.socket_);
             this->logger_ = other.logger_;
             this->mask_key_gen_ = std::move(other.mask_key_gen_);
             this->permessage_deflate_ctx_ = std::move(other.permessage_deflate_ctx_);

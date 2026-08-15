@@ -50,7 +50,7 @@ public:
      * @return The number of bytes read, or an error.
      */
     [[nodiscard]] inline TValueTask<std::expected<size_t, WSError>> read_some(
-        span<byte> buffer, Timeout<>& timeout
+        std::span<byte> buffer, Timeout<>& timeout
     ) noexcept
     {
         try

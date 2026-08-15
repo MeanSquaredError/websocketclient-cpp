@@ -57,6 +57,9 @@ public:
      */
     [[nodiscard]] inline std::expected<bool, WSError> can_read() noexcept
     {
+        if (!read_buffer_.empty())
+            return true;
+
         return socket_.can_read();
     }
 
@@ -155,7 +158,7 @@ public:
         const std::span<const byte> buffer, Timeout<>& timeout
     ) noexcept
     {
-        co_return co_await socket_.write_some(buffer.data(), buffer.size(), timeout);
+        co_return co_await socket_.write_some(buffer, timeout);
     }
 
     /**

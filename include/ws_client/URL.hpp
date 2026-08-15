@@ -107,16 +107,24 @@ public:
     }
 
     /**
-     * Returns the resource part of the URL, which is everything
-     * after the host and port.
+     * Returns the request-target path and query. URL fragments are excluded.
      * 
      * Examples:
      *      "/mail/?a=b&c=b", "/index.html", "/"
      */
-#pragma once
     [[nodiscard]] inline const std::string& resource() const noexcept
     {
         return resource_;
+    }
+
+    /**
+     * Returns the host and port, with brackets around IPv6 addresses.
+     */
+    [[nodiscard]] inline std::string authority() const noexcept
+    {
+        if (host_.find(':') != std::string::npos)
+            return std::format("[{}]:{}", host_, port_);
+        return std::format("{}:{}", host_, port_);
     }
 
     /**
@@ -156,7 +164,7 @@ public:
 
         // detect and handle IPv6 address
         size_t host_end_pos;
-        if (url[offset] == '[')
+        if (offset < url.size() && url[offset] == '[')
         {
             // find the closing bracket for IPv6 address
             size_t ipv6_end_pos = url.find(']', offset);
@@ -171,15 +179,13 @@ public:
 
             // exclude brackets when setting the host
             host = url.substr(offset + 1, ipv6_end_pos - offset - 1);
-            host_end_pos = url.find_first_of('/', ipv6_end_pos);
-
             // extract port if present
             size_t port_start = ipv6_end_pos + 1;
-            if (url[port_start] == ':')
+            host_end_pos = url.find_first_of("/?#", port_start);
+            if (port_start < url.size() && url[port_start] == ':')
             {
-                std::string_view port_str = url.substr(
-                    port_start + 1, host_end_pos - port_start - 1
-                );
+                size_t port_end = host_end_pos != std::string::npos ? host_end_pos : url.size();
+                std::string_view port_str = url.substr(port_start + 1, port_end - port_start - 1);
                 if (port_str.empty())
                 {
                     port = defaultport_;
@@ -190,6 +196,15 @@ public:
                     port = *res;
                 }
             }
+            else if (port_start < url.size() && url[port_start] != '/' && url[port_start] != '?' &&
+                     url[port_start] != '#')
+            {
+                return WS_ERROR(
+                    url_error,
+                    std::format("Invalid URL, unexpected character after IPv6 host: {}", url),
+                    close_code::not_set
+                );
+            }
             else
             {
                 port = defaultport_;
@@ -197,13 +212,14 @@ public:
         }
         else
         {
-            host_end_pos = url.find_first_of('/', offset);
+            host_end_pos = url.find_first_of("/?#", offset);
             size_t colon_pos = url.find(':', offset);
             if (colon_pos != std::string::npos &&
                 (host_end_pos == std::string::npos || colon_pos < host_end_pos))
             {
                 host = url.substr(offset, colon_pos - offset);
-                std::string_view port_str = url.substr(colon_pos + 1, host_end_pos - colon_pos - 1);
+                size_t port_end = host_end_pos != std::string::npos ? host_end_pos : url.size();
+                std::string_view port_str = url.substr(colon_pos + 1, port_end - colon_pos - 1);
                 if (port_str.empty())
                 {
                     port = defaultport_;
@@ -221,8 +237,26 @@ public:
             }
         }
 
-        // extract resource (everything after host/port)
-        resource = (host_end_pos != std::string::npos ? url.substr(host_end_pos) : "/");
+        if (host.empty())
+        {
+            return WS_ERROR(
+                url_error, std::format("Invalid URL, host is empty: {}", url), close_code::not_set
+            );
+        }
+
+        // Extract the HTTP request target. Fragments are not sent to the server.
+        if (host_end_pos == std::string::npos || url[host_end_pos] == '#')
+        {
+            resource = "/";
+        }
+        else
+        {
+            size_t fragment_pos = url.find('#', host_end_pos);
+            size_t resource_end = fragment_pos != std::string::npos ? fragment_pos : url.size();
+            resource = url.substr(host_end_pos, resource_end - host_end_pos);
+            if (resource.starts_with('?'))
+                resource.insert(resource.begin(), '/');
+        }
 
         return URL(protocol, host, port, resource);
     }
@@ -249,13 +283,14 @@ public:
     [[nodiscard]] static inline std::expected<int, WSError> parse_port(std::string_view input)
     {
         int port;
-        auto const res = std::from_chars(input.data(), input.data() + input.size(), port);
+        const char* end = input.data() + input.size();
+        auto const res = std::from_chars(input.data(), end, port);
 
-        if (res.ec != std::errc{})
+        if (res.ec != std::errc{} || res.ptr != end || port < 1 || port > 65535)
         {
             return WS_ERROR(
                 url_error,
-                std::format("Failed to parse port number from URL: {}", input),
+                std::format("Invalid port number in URL, expected 1-65535: {}", input),
                 close_code::not_set
             );
         }
@@ -265,7 +300,7 @@ public:
 
     [[nodiscard]] std::string to_string() const noexcept
     {
-        return std::format("{}://{}:{}{}", protocol_, host_, port_, resource_);
+        return std::format("{}://{}{}", protocol_, authority(), resource_);
     }
 
     // iostream support

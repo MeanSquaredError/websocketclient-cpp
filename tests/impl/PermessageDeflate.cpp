@@ -1,7 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <string>
 #include <iostream>
+#include <string_view>
+#include <utility>
 
 #include "ws_client/config.hpp"
 #include "ws_client/PermessageDeflate.hpp"
@@ -11,6 +14,27 @@ using namespace ws_client;
 using std::string;
 using std::span;
 using std::byte;
+
+TEST(PermessageDeflate, validates_window_bits)
+{
+    ConsoleLogger logger{LogLevel::N};
+    PermessageDeflate<decltype(logger)> permessage_deflate{.logger = &logger};
+
+    constexpr std::array<std::string_view, 7> invalid_values{
+        "",
+        "7",
+        "16",
+        "8junk",
+        "15 ",
+        "-248",
+        "264",
+    };
+    for (const auto value : invalid_values)
+        EXPECT_FALSE(permessage_deflate.parse_window_bits(std::string(value)).has_value()) << value;
+
+    EXPECT_EQ(permessage_deflate.parse_window_bits("8"), 8);
+    EXPECT_EQ(permessage_deflate.parse_window_bits("15"), 15);
+}
 
 /**
  * Permessage-deflate extension, as defined in RFC 7692.
@@ -54,13 +78,8 @@ TEST(PermessageDeflateContext, compress_empty)
     auto res2 = ctx.compress(payload);
     EXPECT_TRUE(res2.has_value());
     span<byte> compressed = *res2;
-    EXPECT_EQ(compressed.size(), 6);
-    EXPECT_EQ(compressed[0], byte{0x02});
-    EXPECT_EQ(compressed[1], byte{0x00});
-    EXPECT_EQ(compressed[2], byte{0x00});
-    EXPECT_EQ(compressed[3], byte{0x00});
-    EXPECT_EQ(compressed[4], byte{0xFF});
-    EXPECT_EQ(compressed[5], byte{0xFF});
+    ASSERT_EQ(compressed.size(), 1);
+    EXPECT_EQ(compressed[0], byte{0x00});
 }
 
 TEST(PermessageDeflateContext, decompress_empty)
@@ -79,8 +98,8 @@ TEST(PermessageDeflateContext, decompress_empty)
     PermessageDeflateContext<decltype(logger)> ctx{&logger, pd};
     EXPECT_TRUE(ctx.init().has_value());
 
-    uint8_t buf[] = {0x02, 0x00, 0x00, 0x00, 0xff, 0xff};
-    span<byte> payload{reinterpret_cast<byte*>(buf), 6};
+    uint8_t buf[] = {0x00};
+    span<byte> payload{reinterpret_cast<byte*>(buf), sizeof(buf)};
     ctx.decompress_buffer().append(payload.data(), payload.size());
     
     Buffer output = Buffer::create(0, 1024).value();
@@ -109,9 +128,9 @@ TEST(PermessageDeflateContext, decompress_hello)
     EXPECT_TRUE(ctx.init().has_value());
 
     // Hello
-    uint8_t buf[11] = {
+    uint8_t buf[] = {
         0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00}; // trailer bytes stripped: 0x00, 0x00, 0xff, 0xff
-    span<byte> payload{reinterpret_cast<byte*>(buf), 6};
+    span<byte> payload{reinterpret_cast<byte*>(buf), sizeof(buf)};
     ctx.decompress_buffer().append(payload.data(), payload.size());
 
     Buffer output = Buffer::create(0, 1024).value();
@@ -162,5 +181,46 @@ TEST(PermessageDeflateContext, compress_decompress_loop)
         string decompressed_str{reinterpret_cast<char*>(decompressed.data()),
                                 decompressed.size()};
         EXPECT_EQ(decompressed_str, "Hello");
+    }
+}
+
+TEST(PermessageDeflateContext, preserves_context_takeover_between_messages)
+{
+    ConsoleLogger logger{LogLevel::N};
+    PermessageDeflate<decltype(logger)> pd{
+        .logger = &logger,
+        .server_max_window_bits = 15,
+        .client_max_window_bits = 15,
+        .server_no_context_takeover = false,
+        .client_no_context_takeover = false,
+        .decompress_buffer_size = 1024 * 1024,
+        .compress_buffer_size = 1024 * 1024,
+    };
+
+    PermessageDeflateContext<decltype(logger)> ctx{&logger, pd};
+    ASSERT_TRUE(ctx.init().has_value());
+
+    // RFC 7692 section 7.2.3.2: the second "Hello" references the first message's history.
+    constexpr std::array first{
+        byte{0xf2}, byte{0x48}, byte{0xcd}, byte{0xc9}, byte{0xc9}, byte{0x07}, byte{0x00}
+    };
+    constexpr std::array second{byte{0xf2}, byte{0x00}, byte{0x11}, byte{0x00}, byte{0x00}};
+    const std::array messages{std::span<const byte>{first}, std::span<const byte>{second}};
+
+    for (const auto compressed : messages)
+    {
+        ctx.decompress_buffer().clear();
+        auto append_res = ctx.decompress_buffer().append(compressed.data(), compressed.size());
+        ASSERT_TRUE(append_res.has_value());
+
+        auto output_res = Buffer::create(0, 1024 * 1024);
+        ASSERT_TRUE(output_res.has_value());
+
+        Buffer output = std::move(*output_res);
+        auto decompressed_res = ctx.decompress(output);
+        ASSERT_TRUE(decompressed_res.has_value());
+
+        string decompressed{reinterpret_cast<char*>(output.data().data()), output.size()};
+        EXPECT_EQ(decompressed, "Hello");
     }
 }

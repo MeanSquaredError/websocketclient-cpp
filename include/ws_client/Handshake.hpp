@@ -6,6 +6,8 @@
 #include <format>
 #include <map>
 #include <optional>
+#include <string_view>
+#include <cctype>
 
 #include "ws_client/errors.hpp"
 #include "ws_client/utils/string.hpp"
@@ -49,6 +51,7 @@ public:
           url_(std::move(other.url_)),
           rnd_(std::move(other.rnd_)),
           request_SecWebSocketKey_(std::move(other.request_SecWebSocketKey_)),
+          request_header_(std::move(other.request_header_)),
           response_header_(std::move(other.response_header_)),
           permessage_deflate_(std::move(other.permessage_deflate_)),
           permessage_deflate_negotiated_(other.permessage_deflate_negotiated_),
@@ -63,6 +66,7 @@ public:
             url_ = std::move(other.url_);
             rnd_ = std::move(other.rnd_);
             request_SecWebSocketKey_ = std::move(other.request_SecWebSocketKey_);
+            request_header_ = std::move(other.request_header_);
             response_header_ = std::move(other.response_header_);
             permessage_deflate_ = std::move(other.permessage_deflate_);
             permessage_deflate_negotiated_ = other.permessage_deflate_negotiated_;
@@ -130,7 +134,7 @@ public:
         request_header_.request_line = {
             .method = "GET", .request_target = url_.resource(), .http_version = "HTTP/1.1"
         };
-        fields.add_if_missing("Host", std::format("{}:{}", url_.host(), url_.port()));
+        fields.add_if_missing("Host", url_.authority());
         fields.add_if_missing("Upgrade", "websocket");
         fields.add_if_missing("Connection", "Upgrade");
         fields.add_if_missing("Sec-WebSocket-Version", "13");
@@ -199,7 +203,8 @@ public:
         WS_TRY(fields_res, HttpParser::parse_header_fields(stream));
         response_header_ = HttpResponseHeader(status_line, std::move(*fields_res));
 
-        // validate "Connection: Upgrade" header
+        // validate HTTP upgrade headers
+        WS_TRYV(validate_UpgradeWebsocket());
         WS_TRYV(validate_ConnectionUpgrade());
 
         // validate "Sec-WebSocket-Accept" header
@@ -221,21 +226,73 @@ public:
     }
 
 protected:
+    [[nodiscard]] static bool header_contains_token(
+        const HttpHeaderFields& fields, std::string_view name, std::string_view expected
+    ) noexcept
+    {
+        for (const auto& [key, value] : fields.fields)
+        {
+            if (!equals_ci(key, name))
+                continue;
+
+            std::string_view remaining = value;
+            while (true)
+            {
+                size_t comma = remaining.find(',');
+                std::string_view token = remaining.substr(0, comma);
+
+                while (!token.empty() && std::isspace(static_cast<unsigned char>(token.front())))
+                    token.remove_prefix(1);
+                while (!token.empty() && std::isspace(static_cast<unsigned char>(token.back())))
+                    token.remove_suffix(1);
+
+                if (equals_ci(token, expected))
+                    return true;
+                if (comma == std::string_view::npos)
+                    break;
+
+                remaining.remove_prefix(comma + 1);
+            }
+        }
+
+        return false;
+    }
+
+    [[nodiscard]] std::expected<void, WSError> validate_UpgradeWebsocket()
+    {
+        if (!response_header_.fields.contains_key("Upgrade"))
+        {
+            return WS_ERROR(
+                protocol_error, "HTTP response is missing 'Upgrade' header", close_code::not_set
+            );
+        }
+
+        if (!header_contains_token(response_header_.fields, "Upgrade", "websocket"))
+        {
+            return WS_ERROR(
+                protocol_error,
+                "HTTP response 'Upgrade' header does not contain 'websocket'",
+                close_code::not_set
+            );
+        }
+
+        return {};
+    }
+
     [[nodiscard]] std::expected<void, WSError> validate_ConnectionUpgrade()
     {
-        auto h_con = response_header_.fields.get_first("Connection");
-        if (!h_con.has_value())
+        if (!response_header_.fields.contains_key("Connection"))
         {
             return WS_ERROR(
                 protocol_error, "HTTP response is missing 'Connection' header", close_code::not_set
             );
         }
 
-        if (!equals_ci(*h_con, "Upgrade"))
+        if (!header_contains_token(response_header_.fields, "Connection", "Upgrade"))
         {
             return WS_ERROR(
                 protocol_error,
-                std::format("Invalid 'Connection' header, expected: 'Upgrade', got: {}", *h_con),
+                "HTTP response 'Connection' header does not contain 'Upgrade'",
                 close_code::not_set
             );
         }

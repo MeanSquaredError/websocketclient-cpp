@@ -5,8 +5,10 @@
 #include <string>
 #include <expected>
 #include <format>
+#include <memory>
 
 #include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include "ws_client/errors.hpp"
 

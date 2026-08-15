@@ -12,6 +12,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends clang-format-18
+
+      - name: Check formatting
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}"; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+
+          format_diff=$(mktemp)
+          git clang-format-18 --binary clang-format-18 --diff \
+            "$BASE_SHA" HEAD --extensions hpp,cpp -- include tests examples bench \
+            > "$format_diff"
+
+          if grep -q '^diff --git ' "$format_diff"; then
+            cat "$format_diff"
+            exit 1
+          fi
+
   ci:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
@@ -83,15 +118,6 @@ jobs:
             "libc++-${{ matrix.libcxx_version }}-dev" \
             "libc++abi-${{ matrix.libcxx_version }}-dev"
 
-      - name: Check public headers
-        run: |
-          for header in ws_client.hpp ws_client_async.hpp; do
-            printf '#include "ws_client/%s"\n' "$header" |
-              "$CXX" -std=${{ matrix.standard }} ${{ matrix.stdlib }} -Iinclude \
-                -Wall -Wextra -Wpedantic -Werror \
-                -x c++ -fsyntax-only -
-          done
-
       - name: Configure and build
         run: |
           export VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
@@ -101,7 +127,79 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
           cmake --build build/${{ matrix.preset }} --parallel 2
 
+      - name: Check installed public headers
+        run: |
+          install_prefix="$PWD/build/header-install"
+          cmake --install build/${{ matrix.preset }} --prefix "$install_prefix"
+          dependency_includes="$PWD/build/${{ matrix.preset }}/vcpkg_installed/${{ matrix.triplet }}/include"
+
+          while IFS= read -r header; do
+            include_name=${header#"$install_prefix/include/"}
+            printf '#include <%s>\n' "$include_name" |
+              "$CXX" -std=${{ matrix.standard }} ${{ matrix.stdlib }} \
+                -I"$install_prefix/include" -I"$dependency_includes" \
+                -Wall -Wextra -Wpedantic -Werror \
+                -x c++ -fsyntax-only -
+          done < <(find "$install_prefix/include" -type f -name '*.hpp' | sort)
+
       - name: Run unit tests
         run: >-
-          ctest --test-dir build/${{ matrix.preset }}/tests
+          ctest --test-dir build/${{ matrix.preset }}
           --output-on-failure --parallel 2
+
+      - name: Test installed CMake package
+        if: matrix.name == 'GCC 14'
+        run: |
+          cmake --install build/${{ matrix.preset }} --prefix "$PWD/build/install"
+          cmake -S tests/consumer -B build/consumer \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_PREFIX_PATH="$PWD/build/install"
+          cmake --build build/consumer --parallel 2
+          ./build/consumer/websocketclient_consumer
+
+  sanitizers:
+    name: GCC 14 ASan + UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CC: gcc-14
+      CXX: g++-14
+      VCPKG_DISABLE_METRICS: 1
+      UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure and build
+        run: |
+          export VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
+          cmake --preset gcc_debug_tests_san \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_CXX_FLAGS_DEBUG=-g \
+            -DVCPKG_TARGET_TRIPLET=x64-linux
+          cmake --build build/gcc_debug_tests_san --parallel 2
+
+      - name: Run unit tests
+        run: >-
+          ctest --test-dir build/gcc_debug_tests_san
+          --output-on-failure --parallel 2
+
+  no-exceptions:
+    name: GCC 14 -fno-exceptions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compile public API without exceptions
+        run: >-
+          g++-14 -std=c++23 -fno-exceptions -Iinclude
+          -Wall -Wextra -Wpedantic -Werror
+          -fsyntax-only tests/compile/no_exceptions.cpp

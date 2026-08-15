@@ -16,6 +16,7 @@
 #include "ws_client/log.hpp"
 #include "ws_client/transport/ISocket.hpp"
 #include "ws_client/transport/builtin/OpenSslContext.hpp"
+#include "ws_client/transport/builtin/TcpSocket.hpp"
 #include "ws_client/transport/ssl_utils.hpp"
 
 namespace ws_client
@@ -23,8 +24,8 @@ namespace ws_client
 using byte = std::byte;
 using namespace std::chrono_literals;
 
-static std::once_flag open_ssl_ex_once_flag;
-static int open_ssl_ex_ix{-1};
+inline std::once_flag open_ssl_ex_once_flag;
+inline int open_ssl_ex_ix{-1};
 
 /**
  * Wraps a socket file descriptor by a SSL/TLS connection.
@@ -97,7 +98,8 @@ public:
         other.logger_ = nullptr;
 
         // update pointer to "this" in SSL application data
-        set_ssl_ex_data();
+        if (ssl_ != nullptr)
+            set_ssl_ex_data();
     }
     OpenSslSocket& operator=(OpenSslSocket&& other) noexcept
     {
@@ -115,7 +117,8 @@ public:
             other.logger_ = nullptr;
 
             // update pointer to "this" in SSL application data
-            set_ssl_ex_data();
+            if (ssl_ != nullptr)
+                set_ssl_ex_data();
         }
         return *this;
     }
@@ -147,16 +150,16 @@ public:
     /**
      * Get the current cipher used in the connection.
      */
-    [[nodiscard]] std::string get_current_cipher() const noexcept
+    [[nodiscard]] std::expected<std::string, WSError> get_current_cipher() const noexcept
     {
         WS_TRYV(ensure_ssl_init());
-        return SSL_get_cipher(ssl_);
+        return std::string(SSL_get_cipher(ssl_));
     }
 
     /**
      * Get the current TLS version used in the connection.
      */
-    [[nodiscard]] int get_current_tls_version() const noexcept
+    [[nodiscard]] std::expected<int, WSError> get_current_tls_version() const noexcept
     {
         WS_TRYV(ensure_ssl_init());
         return SSL_version(ssl_);
@@ -187,12 +190,13 @@ public:
     }
 
     /**
-     * Enable or disable peer certificate verification.
+     * Enable or disable peer certificate chain and hostname verification.
      */
     [[nodiscard]] std::expected<void, WSError> set_verify_peer(const bool value) noexcept
     {
         WS_TRYV(ensure_ssl_init());
 
+        verify_ = value;
         if (value)
             SSL_set_verify(
                 ssl_, SSL_VERIFY_PEER, OpenSslSocket<TLogger>::ssl_verify_callback<TLogger>
@@ -377,6 +381,9 @@ public:
             else
                 return ssl_error(ret, ssl_err, "connect failed due to SSL error");
         } while (ret != 1 && !timeout.is_expired());
+
+        if (!verify_)
+            return {};
 
         // Step 1: verify a server certificate was presented during the negotiation
         X509* cert = SSL_get_peer_certificate(ssl_);
@@ -943,7 +950,7 @@ private:
         }
     }
 
-    [[nodiscard]] std::expected<void, WSError> ensure_ssl_init() noexcept
+    [[nodiscard]] std::expected<void, WSError> ensure_ssl_init() const noexcept
     {
         if (!ssl_)
             return WS_ERROR(logic_error, "OpenSslSocket not initialized.", close_code::not_set);

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 
 # Set the C++ standard and related settings
 set(CMAKE_CXX_STANDARD 23)
@@ -6,13 +6,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 project(websocketclient
-    VERSION 0.7.2
+    VERSION 0.7.3
     LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+find_package(ZLIB REQUIRED)
+
 add_library(${PROJECT_NAME} INTERFACE)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_23)
+
+target_link_libraries(${PROJECT_NAME} INTERFACE ZLIB::ZLIB)
 
 target_include_directories(${PROJECT_NAME} INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -31,6 +38,7 @@ endif()
 
 # ./tests
 if(WS_CLIENT_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 
@@ -53,24 +61,31 @@ install(TARGETS ${PROJECT_NAME}
     EXPORT ${PROJECT_NAME}Targets
 )
 
-# Install header files
-install(DIRECTORY include/ DESTINATION include)
-
-# Export the library target
-install(EXPORT ${PROJECT_NAME}Targets
-    FILE ${PROJECT_NAME}Config.cmake
-    NAMESPACE ${PROJECT_NAME}::
-    DESTINATION lib/cmake/${PROJECT_NAME}
+# Install header files, excluding the unfinished Coroio transport adapter.
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    PATTERN "CoroioSocket.hpp" EXCLUDE
 )
 
-# Generate a package config file for find_package
-include(CMakePackageConfigHelpers)
+# Generate package configuration files
+configure_package_config_file(
+    cmake/${PROJECT_NAME}Config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+install(EXPORT ${PROJECT_NAME}Targets
+    FILE ${PROJECT_NAME}Targets.cmake
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
     COMPATIBILITY SameMajorVersion
 )
 
 install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-    DESTINATION lib/cmake/${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )

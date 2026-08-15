@@ -35,14 +35,15 @@
       "hidden": true,
       "cacheVariables": {
         "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-libcxx",
         "CMAKE_TOOLCHAIN_FILE": {
           "type": "FILEPATH",
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
         }
       },
       "environment": {
-        "__DISABLED": "-stdlib=libc++  -fno-exceptions -Wfatal-errors -Wunused -Wconversion",
-        "CMAKE_CXX_FLAGS": "-Wall -Wpedantic -Wextra -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
+        "__DISABLED": "-fno-exceptions -Wfatal-errors -Wunused -Wconversion",
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++ -Wall -Wpedantic -Wextra -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
       }
     },
     {
@@ -92,14 +93,16 @@
       "name": "gcc_debug_tests",
       "inherits": ["gcc_debug"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_TESTS": "ON"
+        "WS_CLIENT_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
       "name": "gcc_debug_bench",
       "inherits": ["gcc_debug"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_BENCH": "ON"
+        "WS_CLIENT_BUILD_BENCH": "ON",
+        "VCPKG_MANIFEST_FEATURES": "benchmarks"
       }
     },
     {
@@ -113,7 +116,7 @@
       "name": "gcc_debug_tests_san",
       "inherits": ["gcc_debug_tests"],
       "cacheVariables": {
-        "CMAKE_CXX_FLAGS": "$env{CMAKE_CXX_FLAGS} -fsanitize=leak -fsanitize=address -fsanitize=undefined"
+        "CMAKE_CXX_FLAGS": "$env{CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer"
       }
     },
     {
@@ -141,7 +144,8 @@
       "name": "gcc_release_bench",
       "inherits": ["gcc_release"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_BENCH": "ON"
+        "WS_CLIENT_BUILD_BENCH": "ON",
+        "VCPKG_MANIFEST_FEATURES": "benchmarks"
       }
     },
     {
@@ -155,7 +159,8 @@
       "name": "gcc_release_tests",
       "inherits": ["gcc_release"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_TESTS": "ON"
+        "WS_CLIENT_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -177,14 +182,16 @@
       "name": "clang_debug_tests",
       "inherits": ["clang_debug"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_TESTS": "ON"
+        "WS_CLIENT_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
       "name": "clang_debug_bench",
       "inherits": ["clang_debug"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_BENCH": "ON"
+        "WS_CLIENT_BUILD_BENCH": "ON",
+        "VCPKG_MANIFEST_FEATURES": "benchmarks"
       }
     },
     {
@@ -214,7 +221,8 @@
       "name": "clang_release_bench",
       "inherits": ["clang_release"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_BENCH": "ON"
+        "WS_CLIENT_BUILD_BENCH": "ON",
+        "VCPKG_MANIFEST_FEATURES": "benchmarks"
       }
     },
     {
@@ -228,7 +236,8 @@
       "name": "clang_release_tests",
       "inherits": ["clang_release"],
       "cacheVariables": {
-        "WS_CLIENT_BUILD_TESTS": "ON"
+        "WS_CLIENT_BUILD_TESTS": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
