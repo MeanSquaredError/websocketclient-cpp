@@ -6,7 +6,6 @@ Pull requests and issues are welcome.
 
 - Source location in logging seems off
 - More default logging of control frames
-- Git automatic builds
 - Auto fragmentation when writing large messages?
 - Timeout support for DnsResolver
 
