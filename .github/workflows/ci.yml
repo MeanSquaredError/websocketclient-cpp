@@ -17,23 +17,53 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
       VCPKG_DISABLE_METRICS: 1
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: GCC 13
+            version: 13
             preset: gcc_debug_tests
+            cc: gcc-13
             cxx: g++-13
+            standard: c++23
+            stdlib: ""
+            triplet: x64-linux
+            debug_flags: -g
+            libcxx: false
           - name: GCC 14
+            version: 14
             preset: gcc_debug_tests
+            cc: gcc-14
             cxx: g++-14
+            standard: c++23
+            stdlib: ""
+            triplet: x64-linux
+            debug_flags: -g
+            libcxx: false
           - name: Clang 16
+            version: 16
             preset: clang_debug_tests
+            cc: clang-16
             cxx: clang++-16
+            standard: c++2b
+            stdlib: -stdlib=libc++
+            triplet: x64-linux-libcxx
+            debug_flags: -g -stdlib=libc++
+            libcxx: true
           - name: Clang 18
+            version: 18
             preset: clang_debug_tests
+            cc: clang-18
             cxx: clang++-18
+            standard: c++23
+            stdlib: -stdlib=libc++
+            triplet: x64-linux-libcxx
+            debug_flags: -g -stdlib=libc++
+            libcxx: true
 
     steps:
       - name: Check out repository
@@ -41,11 +71,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install libc++
+        if: matrix.libcxx
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            "libc++-${{ matrix.version }}-dev" \
+            "libc++abi-${{ matrix.version }}-dev"
+
       - name: Check public headers
         run: |
           for header in ws_client.hpp ws_client_async.hpp; do
             printf '#include "ws_client/%s"\n' "$header" |
-              ${{ matrix.cxx }} -std=c++23 -Iinclude \
+              "$CXX" -std=${{ matrix.standard }} ${{ matrix.stdlib }} -Iinclude \
                 -Wall -Wextra -Wpedantic -Werror \
                 -x c++ -fsyntax-only -
           done
@@ -53,7 +91,10 @@ jobs:
       - name: Configure and build
         run: |
           export VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
-          cmake --preset ${{ matrix.preset }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          cmake --preset ${{ matrix.preset }} \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DCMAKE_CXX_FLAGS_DEBUG="${{ matrix.debug_flags }}" \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
           cmake --build build/${{ matrix.preset }} --parallel 2
 
       - name: Run unit tests
