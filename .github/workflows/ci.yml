@@ -12,18 +12,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Compiler lint (${{ matrix.name }})
+  ci:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30
+    env:
+      VCPKG_DISABLE_METRICS: 1
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: GCC 13
+            preset: gcc_debug_tests
             cxx: g++-13
+          - name: GCC 14
+            preset: gcc_debug_tests
+            cxx: g++-14
           - name: Clang 16
+            preset: clang_debug_tests
             cxx: clang++-16
+          - name: Clang 18
+            preset: clang_debug_tests
+            cxx: clang++-18
 
     steps:
       - name: Check out repository
@@ -39,29 +49,6 @@ jobs:
                 -Wall -Wextra -Wpedantic -Werror \
                 -x c++ -fsyntax-only -
           done
-
-  test:
-    name: Unit tests (${{ matrix.name }})
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      VCPKG_DISABLE_METRICS: 1
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: GCC 13
-            preset: gcc_debug_tests
-            cxx: g++-13
-          - name: Clang 16
-            preset: clang_debug_tests
-            cxx: clang++-16
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - name: Configure and build
         run: |
